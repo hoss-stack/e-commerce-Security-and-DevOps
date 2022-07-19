@@ -2,6 +2,8 @@ package com.example.demo.controllers;
 
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +21,8 @@ import com.example.demo.model.persistence.repositories.CartRepository;
 import com.example.demo.model.persistence.repositories.UserRepository;
 import com.example.demo.model.requests.CreateUserRequest;
 
+import javax.persistence.EntityNotFoundException;
+
 import static com.example.demo.security.SecurityConstants.PASSWORD_MINIMUM_SIZE;
 
 @RestController
@@ -34,19 +38,30 @@ public class UserController {
 	@Autowired
 	private BCryptPasswordEncoder bCryptPasswordEncoder;
 
+	Logger log = LoggerFactory.getLogger(UserController.class);
+
 	private boolean meetsTheRequirements(String password) {
 		return password != null && password.length() >= PASSWORD_MINIMUM_SIZE;
 	}
 
 	@GetMapping("/id/{id}")
 	public ResponseEntity<User> findById(@PathVariable Long id) {
-		return ResponseEntity.of(userRepository.findById(id));
+		Optional<User> user = userRepository.findById(id);
+		if (!user.isPresent()) {
+			log.error("No user with this ID", new EntityNotFoundException());
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.of(user);
 	}
 	
 	@GetMapping("/{username}")
 	public ResponseEntity<User> findByUserName(@PathVariable String username) {
 		User user = userRepository.findByUsername(username);
-		return user == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(user);
+		if (user == null) {
+			log.error("No user with this username", new EntityNotFoundException());
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.ok(user);
 	}
 	
 	@PostMapping("/create")
@@ -62,6 +77,7 @@ public class UserController {
 		cartRepository.save(cart);
 		user.setCart(cart);
 		userRepository.save(user);
+		log.info("User created with username {}!", createUserRequest.getUsername());
 		return ResponseEntity.ok(user);
 	}
 	
